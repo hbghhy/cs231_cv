@@ -195,9 +195,9 @@ class FullyConnectedNet(object):
             hidden_dim = hidden_dims[i]
             self.params['W' + str(i + 1)] = np.random.normal(scale=weight_scale, size=[last_dim, hidden_dim])
             self.params['b' + str(i + 1)] = np.zeros((hidden_dim))
-            if self.use_batchnorm:
-                self.params['gamma' + str(i + 1)] = np.ones((last_dim))
-                self.params['beta' + str(i + 1)] = np.zeros((last_dim))
+            if self.use_batchnorm and i<len(hidden_dims)-1:
+                self.params['gamma' + str(i + 1)] = np.ones((hidden_dim))
+                self.params['beta' + str(i + 1)] = np.zeros((hidden_dim))
             last_dim = hidden_dim
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -256,22 +256,20 @@ class FullyConnectedNet(object):
         # layer, etc.                                                              #
         ############################################################################
         cache = {}
-        last = X.reshape((X.shape[0],-1))
+        last = X.reshape((X.shape[0], -1))
         N = X.shape[0]
 
         for i in range(1, self.num_layers):
-            if self.use_batchnorm:
-                f0, cache['bn' + str(i)] = batchnorm_forward(last,
-                        self.params['gamma' + str(i)],
-                        self.params['beta' + str(i)],
-                        self.bn_params[i - 1])
-            else:
-                f0 = last
-            f1, cache[str(i)] = affine_forward(f0, self.params['W' + str(i)], self.params['b' + str(i)])
+            last, cache[str(i)] = affine_forward(last, self.params['W' + str(i)], self.params['b' + str(i)])
             if i < self.num_layers - 1:
-                last, cache['h' + str(i)] = relu_forward(f1)
+                if self.use_batchnorm:
+                    last, cache['bn' + str(i)] = batchnorm_forward(last,
+                                                                   self.params['gamma' + str(i)],
+                                                                   self.params['beta' + str(i)],
+                                                                   self.bn_params[i - 1])
+                last, cache['h' + str(i)] = relu_forward(last)
             else:
-                scores = f1
+                scores = last
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -310,20 +308,17 @@ class FullyConnectedNet(object):
         grads['W' + str(self.num_layers - 1)] = dw / N + \
                                                 self.reg * self.params['W' + str(self.num_layers - 1)]
         grads['b' + str(self.num_layers - 1)] = db / N
-        if self.use_batchnorm:
-            dout, dgamma, dbeta = batchnorm_backward(dout, cache['bn' + str(self.num_layers - 1)])
-            grads['gamma' + str(i)] = dgamma / N
-            grads['beta' + str(i)] = dbeta / N
 
         for i in range(self.num_layers - 2, 0, -1):
             dout = relu_backward(dout, cache['h' + str(i)])
-            dout, dw, db = affine_backward(dout, cache[str(i)])
-            grads['W' + str(i)] = dw / N + self.reg * self.params['W' + str(i)]
-            grads['b' + str(i)] = db / N
             if self.use_batchnorm:
                 dout, dgamma, dbeta = batchnorm_backward(dout, cache['bn' + str(i)])
                 grads['gamma' + str(i)] = dgamma / N
                 grads['beta' + str(i)] = dbeta / N
+            dout, dw, db = affine_backward(dout, cache[str(i)])
+            grads['W' + str(i)] = dw / N + self.reg * self.params['W' + str(i)]
+            grads['b' + str(i)] = db / N
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
