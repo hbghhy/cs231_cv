@@ -310,7 +310,12 @@ def dropout_forward(x, dropout_param):
         # TODO: Implement training phase forward pass for inverted dropout.   #
         # Store the dropout mask in the mask variable.                        #
         #######################################################################
-        pass
+        out = np.copy(x)
+        out = np.reshape(out, (x.shape[0], -1))
+        mask = np.random.rand(out.shape[1])
+        mask = mask > p
+        out[:, ~mask] = 0
+        out = np.reshape(out, x.shape)
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -318,7 +323,7 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # TODO: Implement the test phase forward pass for inverted dropout.   #
         #######################################################################
-        pass
+        out = x
         #######################################################################
         #                            END OF YOUR CODE                         #
         #######################################################################
@@ -345,7 +350,10 @@ def dropout_backward(dout, cache):
         #######################################################################
         # TODO: Implement training phase backward pass for inverted dropout   #
         #######################################################################
-        pass
+        temp = np.copy(dout)
+        temp = np.reshape(temp, (temp.shape[0], -1))
+        temp *= mask
+        dx = np.reshape(temp, dout.shape)
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################

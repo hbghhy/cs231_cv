@@ -195,7 +195,7 @@ class FullyConnectedNet(object):
             hidden_dim = hidden_dims[i]
             self.params['W' + str(i + 1)] = np.random.normal(scale=weight_scale, size=[last_dim, hidden_dim])
             self.params['b' + str(i + 1)] = np.zeros((hidden_dim))
-            if self.use_batchnorm and i<len(hidden_dims)-1:
+            if self.use_batchnorm and i < len(hidden_dims) - 1:
                 self.params['gamma' + str(i + 1)] = np.ones((hidden_dim))
                 self.params['beta' + str(i + 1)] = np.zeros((hidden_dim))
             last_dim = hidden_dim
@@ -268,6 +268,8 @@ class FullyConnectedNet(object):
                                                                    self.params['beta' + str(i)],
                                                                    self.bn_params[i - 1])
                 last, cache['h' + str(i)] = relu_forward(last)
+                if self.use_dropout:
+                    last, cache['drop' + str(i)] = dropout_forward(last, self.dropout_param)
             else:
                 scores = last
         ############################################################################
@@ -310,6 +312,9 @@ class FullyConnectedNet(object):
         grads['b' + str(self.num_layers - 1)] = db / N
 
         for i in range(self.num_layers - 2, 0, -1):
+            if self.use_dropout:
+                dout = dropout_backward(dout, cache['drop' + str(i)])
+
             dout = relu_backward(dout, cache['h' + str(i)])
             if self.use_batchnorm:
                 dout, dgamma, dbeta = batchnorm_backward(dout, cache['bn' + str(i)])
