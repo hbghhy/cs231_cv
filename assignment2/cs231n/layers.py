@@ -310,12 +310,8 @@ def dropout_forward(x, dropout_param):
         # TODO: Implement training phase forward pass for inverted dropout.   #
         # Store the dropout mask in the mask variable.                        #
         #######################################################################
-        out = np.copy(x)
-        out = np.reshape(out, (x.shape[0], -1))
-        mask = np.random.rand(out.shape[1])
-        mask = mask > p
-        out[:, ~mask] = 0
-        out = np.reshape(out, x.shape)
+        mask = (np.random.rand(*x.shape) > p) / (1 - p)
+        out = x * mask
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -350,10 +346,7 @@ def dropout_backward(dout, cache):
         #######################################################################
         # TODO: Implement training phase backward pass for inverted dropout   #
         #######################################################################
-        temp = np.copy(dout)
-        temp = np.reshape(temp, (temp.shape[0], -1))
-        temp *= mask
-        dx = np.reshape(temp, dout.shape)
+        dx = dout * mask
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -523,13 +516,13 @@ def max_pool_backward_naive(dout, cache):
 
     for h in range(HH):
         for w in range(WW):
-            temp=x[:, :, h * stride:h * stride + pool_height, w * stride:w * stride + pool_width]
+            temp = x[:, :, h * stride:h * stride + pool_height, w * stride:w * stride + pool_width]
             for n in range(N):
                 for c in range(C):
-                    max_index=np.argmax(temp[n,c,:,:].flatten())
-                    max_h=int(max_index/(pool_width))
-                    max_w=int(max_index%pool_height)
-                    dx[n,c,h * stride+max_h,w*stride+max_w]+=dout[n,c,h,w]
+                    max_index = np.argmax(temp[n, c, :, :].flatten())
+                    max_h = int(max_index / (pool_width))
+                    max_w = int(max_index % pool_height)
+                    dx[n, c, h * stride + max_h, w * stride + max_w] += dout[n, c, h, w]
 
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -568,7 +561,11 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N, C, H, W = x.shape
+    x_T = x.transpose((0, 2, 3, 1))
+    x_flat = x_T.reshape(-1, C)
+    out, cache = batchnorm_forward(x_flat, gamma, beta, bn_param)
+    out = out.reshape((N, H, W, C)).transpose(0, 3, 1, 2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -598,7 +595,11 @@ def spatial_batchnorm_backward(dout, cache):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N, C, H, W = dout.shape
+    x_T = dout.transpose((0, 2, 3, 1))
+    x_flat = x_T.reshape(-1, C)
+    dx, dgamma, dbeta = batchnorm_backward(x_flat, cache)
+    dx = dx.reshape((N, H, W, C)).transpose(0, 3, 1, 2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
