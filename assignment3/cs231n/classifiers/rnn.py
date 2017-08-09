@@ -74,7 +74,6 @@ class CaptioningRNN(object):
         for k, v in self.params.items():
             self.params[k] = v.astype(self.dtype)
 
-
     def loss(self, features, captions):
         """
         Compute training-time loss for the RNN. We input image features and
@@ -137,13 +136,26 @@ class CaptioningRNN(object):
         # defined above to store loss and gradients; grads[k] should give the      #
         # gradients for self.params[k].                                            #
         ############################################################################
-        pass
+        affine_out, affine_cache = temporal_affine_forward(features.reshape((features.shape[0], 1, features.shape[1])),
+                                                           W_proj, b_proj)
+        affine_out = affine_out.reshape((affine_out.shape[0], affine_out.shape[2]))
+        # print(affine_out.shape)
+        word_embed_out, word_embed_cache = word_embedding_forward(captions_in, W_embed)
+        if self.cell_type == 'rnn':
+            rnn_out, rnn_cache = rnn_forward(word_embed_out, affine_out, Wx, Wh, b)
+        affine_out1, affine_cache1 = temporal_affine_forward(rnn_out, W_vocab, b_vocab)
+        loss, dx = temporal_softmax_loss(affine_out1, captions_out, mask, verbose=False)
+
+        dx, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dx, affine_cache1)
+        dx, dh, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dx, rnn_cache)
+        grads['W_embed'] = word_embedding_backward(dx, word_embed_cache)
+        dx, grads['W_proj'], grads['b_proj'] = temporal_affine_backward(dh.reshape((dh.shape[0], 1, dh.shape[1])),
+                                                                        affine_cache)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
 
         return loss, grads
-
 
     def sample(self, features, max_length=30):
         """
@@ -199,7 +211,24 @@ class CaptioningRNN(object):
         # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
         # a loop.                                                                 #
         ###########################################################################
-        pass
+        previous_word = self._start * np.ones((N, 1), dtype=np.int32)
+        captions[:, 0] =previous_word.reshape(N)
+        affine_out, affine_cache = temporal_affine_forward(features.reshape((features.shape[0], 1, features.shape[1])),
+                                                           W_proj, b_proj)
+        affine_out = affine_out.reshape((affine_out.shape[0], affine_out.shape[2]))
+        H, _ = Wh.shape
+        for i in range(1,max_length):
+
+            word_embed_out, word_embed_cache = word_embedding_forward(previous_word, W_embed)
+            if self.cell_type == 'rnn':
+                rnn_out, rnn_cache = rnn_step_forward(word_embed_out.reshape((word_embed_out.shape[0],-1)), affine_out, Wx, Wh, b)
+            #print(rnn_out.shape)
+            affine_out1, affine_cache1 = temporal_affine_forward(rnn_out.reshape(rnn_out.shape[0],1,-1),
+                                                                 W_vocab,
+                                                                 b_vocab)
+            captions[:, i] = np.argmax(affine_out1.reshape(N,-1), axis=1)
+            previous_word = captions[:, i].reshape(N,1)
+            affine_out = rnn_out
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
