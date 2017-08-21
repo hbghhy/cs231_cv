@@ -248,7 +248,16 @@ def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
     # TODO: Implement the forward pass for a single timestep of an LSTM.        #
     # You may want to use the numerically stable sigmoid implementation above.  #
     #############################################################################
-    pass
+    temp = x.dot(Wx) + prev_h.dot(Wh) + b
+    N = prev_h.shape[0]
+    H = prev_h.shape[1]
+    i = sigmoid(temp[:, :H])
+    f = sigmoid(temp[:, H:2 * H])
+    o = sigmoid(temp[:, 2 * H:3 * H])
+    g = np.tanh(temp[:, 3 * H:4 * H])
+    next_c = f * prev_c + i * g
+    next_h = o * np.tanh(next_c)
+    cache = x, Wx, Wh, temp, next_c, prev_c, prev_h
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -280,7 +289,31 @@ def lstm_step_backward(dnext_h, dnext_c, cache):
     # HINT: For sigmoid and tanh you can compute local derivatives in terms of  #
     # the output value from the nonlinearity.                                   #
     #############################################################################
-    pass
+    x, Wx, Wh, temp, next_c, prev_c, prev_h = cache
+    H = dnext_h.shape[1]
+    i = sigmoid(temp[:, :H])
+    f = sigmoid(temp[:, H:2 * H])
+    o = sigmoid(temp[:, 2 * H:3 * H])
+    g = np.tanh(temp[:, 3 * H:4 * H])
+
+    dnext_c = (dnext_h * o * (1 - (np.tanh(next_c) ** 2)) + dnext_c)
+    dprev_c = dnext_c * f
+    di = dnext_c * g
+    dg = dnext_c * i
+    do = dnext_h * np.tanh(next_c)
+    df = dnext_c * prev_c
+    di *= (1 - i) * i
+    do *= (1 - o) * o
+    df *= (1 - f) * f
+    dg *= (1 - (g ** 2))
+    dtemp = np.hstack((di, df, do, dg))
+    # print(dtemp.shape)
+    dx = dtemp.dot(Wx.T)
+    dprev_h = dtemp.dot(Wh.T)
+    dWx = x.T.dot(dtemp)
+    dWh = prev_h.T.dot(dtemp)
+    db = np.sum(dtemp, axis=0)
+
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -310,12 +343,16 @@ def lstm_forward(x, h0, Wx, Wh, b):
     - h: Hidden states for all timesteps of all sequences, of shape (N, T, H)
     - cache: Values needed for the backward pass.
     """
-    h, cache = None, None
+    h, cache = np.zeros((x.shape[0], x.shape[1], Wh.shape[0])), []
+    c0 = np.zeros_like(h0)
     #############################################################################
     # TODO: Implement the forward pass for an LSTM over an entire timeseries.   #
     # You should use the lstm_step_forward function that you just defined.      #
     #############################################################################
-    pass
+    for i in range(x.shape[1]):
+        h0, c0, temp = lstm_step_forward(x[:, i, :], h0, c0, Wx, Wh, b)
+        cache.append(temp)
+        h[:, i, :] = h0
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -343,7 +380,17 @@ def lstm_backward(dh, cache):
     # TODO: Implement the backward pass for an LSTM over an entire timeseries.  #
     # You should use the lstm_step_backward function that you just defined.     #
     #############################################################################
-    pass
+    N, T, H = dh.shape
+    D = cache[0][0].shape[1]
+    dx, dWx, dWh, db = np.zeros((N, T, D)), np.zeros((D, 4 * H)), np.zeros((H, 4 * H)), np.zeros((4 * H))
+    dc0 = np.zeros((N, H))
+    dh0 = np.zeros((N, H))
+    for i in range(T - 1, -1, -1):
+        temp = lstm_step_backward(dh[:, i, :] + dh0, dc0, cache[i])
+        dx[:, i, :], dh0, dc0, dWx0, dWh0, db0 = temp
+        dWx+=dWx0
+        dWh+=dWh0
+        db+=db0
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
